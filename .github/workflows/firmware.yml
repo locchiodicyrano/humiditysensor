@@ -1,0 +1,73 @@
+# Compila il firmware a ogni push (per vedere subito se ci sono errori).
+# Quando crei un tag "v1", "v2", "v3"... pubblica anche una Release con
+# firmware.bin e version.txt: le schede la scaricano da sole.
+
+name: Firmware
+
+on:
+  push:
+    branches: ["**"]
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write     # serve per creare la Release
+
+env:
+  # Versione del core ESP32: mettila uguale a quella che usi in Arduino IDE
+  # (Strumenti > Scheda > Gestore schede > esp32). Vuota = l'ultima disponibile.
+  CORE_ESP32: "3.3.12"
+  FQBN: "esp32:esp32:esp32c3:CDCOnBoot=cdc,PartitionScheme=min_spiffs,FlashMode=dio"
+  SKETCH: "sensore_pianta"
+
+jobs:
+  firmware:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Numero di versione
+        run: |
+          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+            VERSIONE="${GITHUB_REF_NAME#v}"
+            if ! [[ "$VERSIONE" =~ ^[0-9]+$ ]]; then
+              echo "::error::Il tag deve essere v seguito da un numero intero, per esempio v3"
+              exit 1
+            fi
+          else
+            VERSIONE=0    # solo prova di compilazione
+          fi
+          echo "VERSIONE=$VERSIONE" >> "$GITHUB_ENV"
+
+      - name: Scrive firmware_info.h
+        run: |
+          cat > "$SKETCH/firmware_info.h" <<EOF
+          // Creato da GitHub Actions: non modificare
+          #define VERSIONE_FIRMWARE $VERSIONE
+          #define REPO_GITHUB "$GITHUB_REPOSITORY"
+          #define DEBUG false
+          EOF
+          cat "$SKETCH/firmware_info.h"
+
+      - uses: arduino/setup-arduino-cli@v2
+
+      - name: Installa core ESP32 e librerie
+        run: |
+          arduino-cli config init --overwrite
+          arduino-cli config add board_manager.additional_urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+          arduino-cli core update-index
+          arduino-cli core install "esp32:esp32${CORE_ESP32:+@$CORE_ESP32}"
+          arduino-cli lib install "ArduinoJson@7.4.2"
+
+      - name: Compila
+        run: arduino-cli compile --fqbn "$FQBN" --output-dir build "$SKETCH"
+
+      - name: Pubblica la Release
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp "build/$SKETCH.ino.bin" firmware.bin
+          echo "$VERSIONE" > version.txt
+          gh release create "$GITHUB_REF_NAME" firmware.bin version.txt \
+            --title "Firmware v$VERSIONE" --generate-notes

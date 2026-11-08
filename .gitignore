@@ -1,0 +1,11 @@
+# Creato da GitHub Actions al momento della compilazione
+firmware_info.h
+
+# Eventuali file con password o token: non vanno MAI nel repository
+segreti*
+secrets*
+*.env
+
+# File di compilazione
+build/
+*.bin
