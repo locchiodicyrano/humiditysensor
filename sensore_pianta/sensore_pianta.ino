@@ -551,6 +551,12 @@ String riepilogoSettimana() {
 
 // ---------- Aggiornamento del firmware da GitHub ----------
 
+// Numero di versione in forma leggibile: 10203 -> "1.2.3"
+String testoVersione(int v) {
+  if (v == 0) return "0";
+  return String(v / 10000) + "." + (v / 100 % 100) + "." + (v % 100);
+}
+
 String urlRelease(const char* file) {
   return String("https://github.com/") + REPO_GITHUB + "/releases/latest/download/" + file;
 }
@@ -590,8 +596,8 @@ void controllaAggiornamento() {
     return;
   }
 
-  inviaTelegram(String("🔄 <b>") + nomeHtml() + "</b>: installo il firmware v" + nuova +
-                " (ora ho la v" + VERSIONE_FIRMWARE + "). Torno online tra un minuto.");
+  inviaTelegram(String("🔄 <b>") + nomeHtml() + "</b>: installo il firmware v" + testoVersione(nuova) +
+                " (ora ho la v" + testoVersione(VERSIONE_FIRMWARE) + "). Torno online tra un minuto.");
   salvaStato();
 
   WiFiClientSecure client;
@@ -637,7 +643,7 @@ bool inviaMessaggioMattino(int grezzo, int umidita) {
                  rigaBatteria() + "\n" +
                  (st.giaAvvisato ? "🥀 Sto ancora aspettando l'acqua!" : "🌿 Tutto bene, a domani!") +
                  riepilogoSettimana() +
-                 "\n⚙️ Firmware v" + VERSIONE_FIRMWARE;
+                 "\n⚙️ Firmware v" + testoVersione(VERSIONE_FIRMWARE);
 
   if (st.quanti >= 2) {
     String url = creaGrafico(cfg.nome + " - " + periodoStorico());
@@ -735,7 +741,7 @@ void mostraConfig() {
   Serial.printf ("bagnato        = %d   (lettura in acqua)\n", cfg.bagnato);
   Serial.printf ("soglia_secco   = %d %%\n", cfg.sogliaSecco);
   Serial.printf ("soglia_bagnato = %d %%\n", cfg.sogliaBagnato);
-  Serial.printf ("Firmware v%d, repository %s\n", VERSIONE_FIRMWARE, REPO_GITHUB);
+  Serial.printf ("Firmware v%s, repository %s\n", testoVersione(VERSIONE_FIRMWARE).c_str(), REPO_GITHUB);
   if (!configCompleta()) Serial.println(">> Mancano ancora: ssid, token, chat e nome sono obbligatori");
 }
 
@@ -752,15 +758,24 @@ void aiutoConfig() {
 }
 
 void configurazioneSeriale() {
-  // Il monitor seriale è collegato? (a batteria, senza USB, si salta subito)
+  // L'USB è collegata a un PC? (a batteria si salta dopo 2 secondi)
   unsigned long t0 = millis();
-  while (!Serial && millis() - t0 < 3000) delay(10);
+  while (!Serial.isPlugged() && millis() - t0 < 2000) delay(10);
+  if (!Serial.isPlugged()) return;
+
+  // Dopo RST il monitor seriale impiega qualche secondo a riagganciarsi
+  t0 = millis();
+  while (!Serial && millis() - t0 < 8000) delay(10);
   if (!Serial) return;
 
   if (configCompleta()) {
-    Serial.println("\nScrivi 'config' e premi Invio entro 10 secondi per cambiare le impostazioni.");
-    String r = leggiRiga(10000);
-    r.trim();
+    // Il messaggio si ripete, così si vede anche se il monitor arriva in ritardo
+    String r;
+    for (int i = 10; i > 0 && r.length() == 0; i -= 2) {
+      Serial.printf("\nScrivi 'config' e premi Invio per cambiare le impostazioni (%d secondi)\n", i);
+      r = leggiRiga(2000);
+      r.trim();
+    }
     if (!r.equalsIgnoreCase("config")) return;
   } else {
     Serial.println("\n*** Configurazione mancante: scrivila qui sotto ***");
@@ -886,7 +901,7 @@ void setup() {
     while (!Serial && millis() - t0 < 10000) delay(10);
     delay(500);
   }
-  Serial.printf("\n--- Sensore pianta avviato (firmware v%d) ---\n", VERSIONE_FIRMWARE);
+  Serial.printf("\n--- Sensore pianta avviato (firmware v%s) ---\n", testoVersione(VERSIONE_FIRMWARE).c_str());
   impostaFuso();
   caricaConfig();
   caricaStato();
@@ -924,7 +939,7 @@ void setup() {
                  rigaOra + "\n" +
                  "⏰ Controllo ogni " + MINUTI_SONNO + " minuti\n" +
                  "☀️ Stato e grafico ogni mattina dopo le " + ORA_STATUS + ":00\n" +
-                 "⚙️ Firmware v" + VERSIONE_FIRMWARE + (VERSIONE_FIRMWARE == 0 ? " (compilato a mano)" : "");
+                 "⚙️ Firmware v" + testoVersione(VERSIONE_FIRMWARE) + (VERSIONE_FIRMWARE == 0 ? " (compilato a mano)" : "");
     confermaFirmware(inviaTelegram(msg));
     salvaStato();
   }

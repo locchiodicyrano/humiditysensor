@@ -37,7 +37,7 @@ essere pubblici senza mostrare niente di privato.
    Con `mattino` puoi farti mandare subito il messaggio del mattino, per provarlo.
 
 Per cambiare le impostazioni in seguito: collega l'USB, apri il monitor seriale,
-premi RST e scrivi `config` entro 10 secondi.
+premi RST e, quando compare il messaggio, scrivi `config` entro 10 secondi.
 
 ## Pubblicare una nuova versione
 
@@ -45,9 +45,12 @@ premi RST e scrivi `config` entro 10 secondi.
 git add .
 git commit -m "descrizione della modifica"
 git push
-git tag v2          # numero sempre più alto: v2, v3, v4...
+git tag v1.0.1      # sempre più alta: v1.0.1, v1.1.0, v2.0.0...
 git push --tags
 ```
+
+Il secondo e il terzo numero vanno da 0 a 99. Dentro la scheda la versione è un
+numero intero (1.2.3 = 10203), ed è quello che si trova in `version.txt`.
 
 GitHub Actions compila e crea la Release (scheda **Actions** per vedere come va).
 Le schede la installano al controllo del mattino. Non aggiornano se la batteria

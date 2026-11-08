@@ -1,5 +1,5 @@
 # Compila il firmware a ogni push (per vedere subito se ci sono errori).
-# Quando crei un tag "v1", "v2", "v3"... pubblica anche una Release con
+# Quando crei un tag "v1.0.0", "v1.0.1", "v1.1.0"... pubblica anche una Release con
 # firmware.bin e version.txt: le schede la scaricano da sole.
 
 name: Firmware
@@ -29,14 +29,19 @@ jobs:
       - name: Numero di versione
         run: |
           if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
-            VERSIONE="${GITHUB_REF_NAME#v}"
-            if ! [[ "$VERSIONE" =~ ^[0-9]+$ ]]; then
-              echo "::error::Il tag deve essere v seguito da un numero intero, per esempio v3"
+            TESTO="${GITHUB_REF_NAME#v}"
+            # Secondo e terzo numero da 0 a 99, senza zeri davanti
+            if ! [[ "$TESTO" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]?)\.(0|[1-9][0-9]?)$ ]]; then
+              echo "::error::Il tag deve essere come v1.2.3 (secondo e terzo numero da 0 a 99)"
               exit 1
             fi
+            # La scheda confronta un numero intero: 1.2.3 diventa 10203
+            VERSIONE=$(( BASH_REMATCH[1] * 10000 + BASH_REMATCH[2] * 100 + BASH_REMATCH[3] ))
           else
+            TESTO=0
             VERSIONE=0    # solo prova di compilazione
           fi
+          echo "TESTO=$TESTO" >> "$GITHUB_ENV"
           echo "VERSIONE=$VERSIONE" >> "$GITHUB_ENV"
 
       - name: Scrive firmware_info.h
@@ -70,4 +75,4 @@ jobs:
           cp "build/$SKETCH.ino.bin" firmware.bin
           echo "$VERSIONE" > version.txt
           gh release create "$GITHUB_REF_NAME" firmware.bin version.txt \
-            --title "Firmware v$VERSIONE" --generate-notes
+            --title "Firmware v$TESTO" --generate-notes
