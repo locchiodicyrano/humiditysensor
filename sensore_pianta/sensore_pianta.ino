@@ -600,11 +600,21 @@ void controllaAggiornamento() {
                 " (ora ho la v" + testoVersione(VERSIONE_FIRMWARE) + "). Torno online tra un minuto.");
   salvaStato();
 
-  WiFiClientSecure client;
-  client.setInsecure();
-  httpUpdate.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
-  httpUpdate.rebootOnUpdate(false);
-  t_httpUpdate_return esito = httpUpdate.update(client, urlRelease("firmware.bin"));
+  // Il collegamento a GitHub (con redirect e connessione sicura) è lento per un C3:
+  // l'attesa di serie, 8 secondi, non basta. Si aspetta fino a 30 secondi e si riprova.
+  HTTPUpdate aggiornatore(30000);
+  aggiornatore.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+  aggiornatore.rebootOnUpdate(false);
+  t_httpUpdate_return esito = HTTP_UPDATE_FAILED;
+  for (int prova = 1; prova <= 3 && esito != HTTP_UPDATE_OK; prova++) {
+    WiFiClientSecure client;
+    client.setInsecure();
+    esito = aggiornatore.update(client, urlRelease("firmware.bin"));
+    if (esito == HTTP_UPDATE_OK) break;
+    Serial.printf("Aggiornamento, tentativo %d fallito: %s\n", prova, aggiornatore.getLastErrorString().c_str());
+    if (aggiornatore.getLastError() <= -100) break;   // errore del file, riprovare non serve
+    delay(3000);
+  }
 
   if (esito == HTTP_UPDATE_OK) {
     Serial.println("Aggiornamento installato, riavvio");
@@ -612,7 +622,7 @@ void controllaAggiornamento() {
     delay(200);
     ESP.restart();
   }
-  String errore = httpUpdate.getLastErrorString();
+  String errore = aggiornatore.getLastErrorString();
   Serial.println("Aggiornamento fallito: " + errore);
   inviaTelegram(String("⚠️ <b>") + nomeHtml() + "</b>: aggiornamento non riuscito (" + errore + ").");
 }
@@ -754,7 +764,8 @@ void aiutoConfig() {
   Serial.println("  nome=Nome della pianta");
   Serial.println("  secco=3400  bagnato=1790  soglia_secco=10  soglia_bagnato=35");
   Serial.println("Altri comandi: mostra, lettura (legge il sensore), mattino (manda subito il");
-  Serial.println("messaggio del mattino con il grafico), cancella (cancella tutto), fine");
+  Serial.println("messaggio del mattino con il grafico), aggiorna (cerca subito un firmware nuovo),");
+  Serial.println("cancella (cancella tutto), fine");
 }
 
 void configurazioneSeriale() {
@@ -814,6 +825,13 @@ void configurazioneSeriale() {
       sincronizzaOra();
       int g = leggiGrezzo();
       Serial.println(inviaMessaggioMattino(g, percentuale(g)) ? "Messaggio mandato." : "Messaggio NON mandato.");
+      spegniWiFi();
+      continue;
+    }
+    if (pulita.equalsIgnoreCase("aggiorna")) {
+      if (!configCompleta()) { Serial.println("Prima completa ssid, token, chat e nome."); continue; }
+      Serial.println("Controllo se su GitHub c'è un firmware più nuovo...");
+      controllaAggiornamento();   // se installa, la scheda si riavvia da sola
       spegniWiFi();
       continue;
     }

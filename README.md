@@ -30,6 +30,8 @@ essere pubblici senza mostrare niente di privato.
    nome=Marble Queen Photos
    fine
    ```
+   Con `aggiorna` la scheda cerca subito su GitHub un firmware più nuovo (senza
+   aspettare il mattino) e, se c'è, lo installa.
    Con `lettura` vedi il valore del sensore (utile per la taratura),
    con `secco=...` e `bagnato=...` cambi la taratura, con `mostra` rivedi tutto.
 6. Dopo il messaggio "è online" la scheda va in uso normale. Il mattino dopo
