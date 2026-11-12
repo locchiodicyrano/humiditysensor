@@ -219,6 +219,20 @@ String rigaBatteria() {
   return String("\n") + icona + " Batteria: <b>" + p + "%</b> (" + String(v, 2) + " V)";
 }
 
+// Prima riga dei messaggi: icona, nome in grassetto e testo, poi la linea di separazione.
+// Esempio: intestazione("🥀", " ha sete!")
+String intestazione(const char* icona, const String& testo) {
+  return String(icona) + " <b>" + nomeHtml() + "</b>" + testo + "\n" +
+         "------------------------------\n";
+}
+
+// Righe con lo stato attuale: umidità, lettura del sensore e batteria
+String righeStato(int grezzo, int umidita) {
+  return String("💧 Umidità del terreno: <b>") + umidita + "%</b>\n" +
+         "📟 Lettura sensore: " + grezzo +
+         rigaBatteria();
+}
+
 int percentuale(int grezzo) {
   int perc = map(grezzo, cfg.secco, cfg.bagnato, 0, 100);
   return constrain(perc, 0, 100);
@@ -635,7 +649,7 @@ void controllaBatteria(float v) {
   Serial.printf("Batteria: %.2f V\n", v);
 
   if (v < SOGLIA_BATTERIA && !st.batteriaAvvisata) {
-    String msg = String("🪫 <b>") + nomeHtml() + "</b>: batteria quasi scarica!\n" +
+    String msg = intestazione("🪫", ": batteria quasi scarica!") +
                  "🔋 Carica: <b>" + percentualeBatteria(v) + "%</b> (" + String(v, 2) + " V)\n" +
                  "🔌 Ricaricami presto, se no non posso più avvisarti!";
     st.batteriaAvvisata = inviaTelegram(msg);
@@ -648,10 +662,8 @@ void controllaBatteria(float v) {
 // Messaggio del mattino: stato di adesso, riepilogo della settimana e grafico,
 // tutto in un solo messaggio. Restituisce true se Telegram l'ha ricevuto.
 bool inviaMessaggioMattino(int grezzo, int umidita) {
-  String testo = String("☀️ <b>") + nomeHtml() + "</b>: buongiorno!\n" +
-                 "💧 Umidità del terreno: <b>" + umidita + "%</b> (lettura " + grezzo + ")" +
-                 rigaBatteria() + "\n" +
-                 (st.giaAvvisato ? "🥀 Sto ancora aspettando l'acqua!" : "🌿 Tutto bene, a domani!") +
+  String testo = intestazione("☀️", ": buongiorno!") +
+                 righeStato(grezzo, umidita) +
                  riepilogoSettimana() +
                  "\n⚙️ Firmware v" + testoVersione(VERSIONE_FIRMWARE);
 
@@ -699,18 +711,12 @@ void controlla() {
 
   if (umidita < cfg.sogliaSecco && !st.giaAvvisato) {
     // Terra secca: chiede da bere (una sola volta)
-    String msg = String("🥀 <b>") + nomeHtml() + "</b> ha sete!\n" +
-                 "💧 Umidità del terreno: <b>" + umidita + "%</b>" +
-                 rigaBatteria() + "\n" +
-                 "🚿 Annaffiami, per favore! 🙏";
+    String msg = intestazione("🥀", " ha sete!") + righeStato(grezzo, umidita);
     st.giaAvvisato = inviaTelegram(msg);
   }
   else if (umidita > cfg.sogliaBagnato && st.giaAvvisato) {
     // Annaffiata dopo l'avviso: ringrazia
-    String msg = String("🌿 <b>") + nomeHtml() + "</b>: grazie per l'acqua! 😊\n" +
-                 "💧 Umidità del terreno: <b>" + umidita + "%</b>" +
-                 rigaBatteria() + "\n" +
-                 "🌞 Ora sto benissimo!";
+    String msg = intestazione("🌿", ": ringrazia per l'acqua!") + righeStato(grezzo, umidita);
     if (inviaTelegram(msg)) st.giaAvvisato = false;   // se fallisce, riprova al prossimo controllo
   }
 
@@ -938,25 +944,15 @@ void setup() {
 
   // Solo all'accensione (non ai risvegli): legge l'ora e manda il messaggio di prova
   if (!risveglio) {
-    bool oraOk = sincronizzaOra();
-    String rigaOra = "🕗 Ora non disponibile, riprovo più tardi";
     struct tm t;
-    if (oraOk && oraLocale(t)) {
-      char buf[6];
-      strftime(buf, sizeof(buf), "%H:%M", &t);
-      rigaOra = String("🕗 Ora: ") + buf;
+    if (sincronizzaOra() && oraLocale(t)) {
       // se e' gia' passata l'ora dello stato, il primo arriva domattina
       if (t.tm_hour >= ORA_STATUS) st.giornoUltimoStatus = codiceGiorno(t);
     }
 
     int g = leggiGrezzo();
-    String msg = String("🌱 <b>") + nomeHtml() + "</b> è online!\n" +
-                 "💧 Umidità del terreno: <b>" + percentuale(g) + "%</b>\n" +
-                 "📟 Lettura sensore: " + g +
-                 rigaBatteria() + "\n" +
-                 rigaOra + "\n" +
-                 "⏰ Controllo ogni " + MINUTI_SONNO + " minuti\n" +
-                 "☀️ Stato e grafico ogni mattina dopo le " + ORA_STATUS + ":00\n" +
+    String msg = intestazione("🌱", " è online!") +
+                 righeStato(g, percentuale(g)) + "\n" +
                  "⚙️ Firmware v" + testoVersione(VERSIONE_FIRMWARE) + (VERSIONE_FIRMWARE == 0 ? " (compilato a mano)" : "");
     confermaFirmware(inviaTelegram(msg));
     salvaStato();
