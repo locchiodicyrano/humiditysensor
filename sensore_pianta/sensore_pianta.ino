@@ -60,7 +60,7 @@ const int SOGLIA_BAGNATO_INIZIALE = 35;    // sopra questa % -> "grazie"
 
 // true solo dopo aver montato il partitore (2 resistenze da 100k sul pin 1)
 #define USA_BATTERIA true
-const float SOGLIA_BATTERIA = 3.6;   // sotto questi volt -> "batteria scarica"
+const float SOGLIA_BATTERIA = 3.65;  // sotto questi volt -> "batteria scarica" (~20%: sotto ~3,5 V il sensore legge male)
 const float BATTERIA_CARICA = 3.9;   // sopra questi volt l'avviso si azzera (dopo la ricarica)
 const float BATTERIA_MIN_AGGIORNAMENTO = 3.7;  // sotto questi volt non si aggiorna il firmware
 
